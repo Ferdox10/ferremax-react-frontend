@@ -17,14 +17,15 @@ export default function PaymentStep() {
     const [loadingMethod, setLoadingMethod] = useState(null);
 
     const createPayPalOrder = async (data, actions) => {
-        const totalInUSD = (cartTotal / 4000).toFixed(2);
-        console.log("Creando orden de PayPal por:", totalInUSD, "USD");
+        // Ahora el total ya está en COP, solo nos aseguramos de que tenga 2 decimales.
+        const totalInCOP = cartTotal.toFixed(2);
+        console.log("Creando orden de PayPal por:", totalInCOP, "COP");
 
         return actions.order.create({
             purchase_units: [{
                 amount: {
-                    value: totalInUSD,
-                    currency_code: "USD"
+                    value: totalInCOP,
+                    currency_code: "COP" // Asegurarse de que sea COP
                 }
             }]
         });
