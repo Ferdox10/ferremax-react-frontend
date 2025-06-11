@@ -68,5 +68,6 @@ export const deletePolicyApi = (id) => apiClient.delete(`/api/admin/content/poli
 export const addPolicyApi = (titulo, contenido) => apiClient.post('/api/admin/content/policies', { titulo, contenido });
 export const addFaqApi = (pregunta, respuesta) => apiClient.post('/api/admin/content/faq', { pregunta, respuesta });
 export const deleteFaqApi = (id) => apiClient.delete(`/api/admin/content/faq/${id}`);
+export const getExchangeRate = () => apiClient.get('/api/currency/rate');
 
 // ... puedes añadir aquí el resto de endpoints del admin (órdenes, usuarios, etc.)

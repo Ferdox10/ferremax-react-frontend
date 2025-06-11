@@ -1,10 +1,10 @@
 // src/components/checkout/PaymentStep.jsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useCheckout } from '../../context/CheckoutContext';
 import { useCart } from '../../hooks/useCart';
 import { useAuth } from '../../hooks/useAuth';
 import { PayPalButtons, usePayPalScriptReducer } from "@paypal/react-paypal-js";
-import { createCashOnDeliveryOrder } from '../../services/api';
+import { createCashOnDeliveryOrder, getExchangeRate } from '../../services/api';
 import { Button } from '@/components/ui/button';
 import OrderSummary from './OrderSummary';
 
@@ -15,23 +15,45 @@ export default function PaymentStep() {
     const [{ isPending }] = usePayPalScriptReducer();
     const [error, setError] = useState('');
     const [loadingMethod, setLoadingMethod] = useState(null);
+    const [exchangeRate, setExchangeRate] = useState(null); // Estado para la tasa
+    const [rateError, setRateError] = useState(false);
+
+    useEffect(() => {
+        // Pedir la tasa de cambio al montar el componente
+        const fetchRate = async () => {
+            try {
+                console.log("Frontend: Solicitando tasa de cambio al backend...");
+                const response = await getExchangeRate();
+                // --- LOG DE DEPURACIÓN CRUCIAL ---
+                console.log("Frontend: Respuesta recibida del backend:", response.data);
+                if (response.data.success && response.data.rate) {
+                    console.log("Frontend: Tasa de cambio REAL obtenida:", response.data.rate);
+                    setExchangeRate(response.data.rate);
+                    setRateError(false);
+                } else {
+                    // Si el backend falló, nos enviará una tasa de respaldo
+                    console.warn("Frontend: La API del backend falló, usando tasa de respaldo.");
+                    setExchangeRate(response.data.fallbackRate || 4000);
+                    setRateError(true);
+                }
+            } catch (error) {
+                console.error("Frontend: Error de red o del servidor al pedir la tasa. Usando tasa de respaldo final.", error);
+                setExchangeRate(4000); // Tasa de respaldo final
+                setRateError(true);
+            }
+        };
+        fetchRate();
+    }, []);
 
     const createPayPalOrder = async (data, actions) => {
-        // --- LÓGICA DE CONVERSIÓN ---
-        const TASA_DE_CAMBIO_COP_A_USD = 4000; // ¡Ajusta esta tasa según necesites!
-        // El cartTotal viene en COP desde nuestro contexto
-        const totalInUSD = (cartTotal / TASA_DE_CAMBIO_COP_A_USD).toFixed(2); // Convertir y asegurar 2 decimales
-        console.log(`Total en COP: ${cartTotal}. Total convertido a USD: ${totalInUSD}`);
-        // Verificación para evitar montos muy pequeños que PayPal pueda rechazar
-        if (parseFloat(totalInUSD) < 0.01) {
-            alert("El monto es demasiado bajo para ser procesado por PayPal.");
-            return actions.order.create({ purchase_units: [] }); // Devuelve una orden vacía para cancelar
-        }
+        if (!exchangeRate) return; // No hacer nada si la tasa no ha cargado
+        const totalInUSD = (cartTotal / exchangeRate).toFixed(2);
+        console.log(`Total en COP: ${cartTotal}. Tasa: ${exchangeRate}. Total convertido a USD: ${totalInUSD}`);
         return actions.order.create({
             purchase_units: [{
                 amount: {
-                    value: totalInUSD, // Enviar el valor en USD
-                    currency_code: "USD" // Especificar que la moneda es USD
+                    value: totalInUSD,
+                    currency_code: "USD"
                 }
             }]
         });
@@ -73,7 +95,8 @@ export default function PaymentStep() {
                     <Button onClick={goToPrevStep} variant="outline" className="w-full">Volver y Editar Información</Button>
                     <div className="border-t my-4"></div>
                     
-                    {isPending ? <p>Cargando PayPal...</p> : (
+                    {rateError && <p className="text-xs text-amber-600 text-center">No se pudo obtener la tasa de cambio en tiempo real. Se usará una tasa de referencia.</p>}
+                    {isPending || !exchangeRate ? <p className="text-center">Cargando métodos de pago...</p> : (
                         <PayPalButtons 
                             style={{ layout: "vertical" }}
                             createOrder={createPayPalOrder} 
