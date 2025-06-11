@@ -8,7 +8,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { User, LogOut, Heart, ShoppingCart, Settings, LayoutDashboard, BarChart3, Wrench, Search, Menu, X } from "lucide-react";
+import { User, LogOut, Heart, ShoppingCart, LayoutDashboard, BarChart3, Wrench, Search, Menu, X } from "lucide-react";
 
 export default function Header() {
     const { isAuthenticated, user, logout, isAdmin } = useAuth();
@@ -19,15 +19,6 @@ export default function Header() {
     const navigate = useNavigate();
     const userMenuRef = useRef(null);
 
-    const handleSearch = (e) => {
-        e.preventDefault();
-        if (searchTerm.trim()) {
-            navigate(`/products?search=${searchTerm.trim()}`);
-            setSearchTerm('');
-            setIsMobileMenuOpen(false);
-        }
-    };
-    
     useEffect(() => {
         function handleClickOutside(event) {
             if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
@@ -38,10 +29,19 @@ export default function Header() {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, [userMenuRef]);
 
+    const handleSearch = (e) => {
+        e.preventDefault();
+        if (searchTerm.trim()) {
+            navigate(`/products?search=${searchTerm.trim()}`);
+            setSearchTerm('');
+            setIsMobileMenuOpen(false);
+        }
+    };
+    
     const closeMobileMenu = () => setIsMobileMenuOpen(false);
 
     return (
-        <header className="bg-white shadow-sm py-2">
+        <header className="bg-white shadow-sm py-2 sticky top-0 z-50">
             <div className="container mx-auto px-4 flex items-center justify-between">
                 {/* Logo Clickeable */}
                 <Link to="/" className="flex items-center space-x-2">
@@ -93,20 +93,32 @@ export default function Header() {
                                     </div>
                                 </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent className="w-56" align="end" forceMount>
+                            <DropdownMenuContent 
+                                className="w-56 bg-white shadow-lg ring-1 ring-black ring-opacity-5" 
+                                align="end" 
+                                forceMount
+                            >
                                 <DropdownMenuLabel className="font-normal">
-                                    <div className="flex flex-col space-y-1">
+                                    <div className="flex flex-col space-y-1 p-2">
                                         <p className="text-sm font-medium leading-none">{user.username}</p>
                                         <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
                                     </div>
                                 </DropdownMenuLabel>
                                 <DropdownMenuSeparator />
                                 {isAdmin && (
-                                  <DropdownMenuItem asChild><Link to="/admin/dashboard"><LayoutDashboard className="mr-2 h-4 w-4" /><span>Dashboard</span></Link></DropdownMenuItem>
+                                  <DropdownMenuItem asChild>
+                                    <Link to="/admin/dashboard" className="cursor-pointer">
+                                        <LayoutDashboard className="mr-2 h-4 w-4" /><span>Dashboard</span>
+                                    </Link>
+                                  </DropdownMenuItem>
                                 )}
-                                <DropdownMenuItem asChild><Link to="/favorites"><Heart className="mr-2 h-4 w-4" /><span>Favoritos</span></Link></DropdownMenuItem>
+                                <DropdownMenuItem asChild>
+                                    <Link to="/favorites" className="cursor-pointer">
+                                        <Heart className="mr-2 h-4 w-4" /><span>Favoritos</span>
+                                    </Link>
+                                </DropdownMenuItem>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={logout} className="text-red-600 focus:text-red-600 focus:bg-red-50">
+                                <DropdownMenuItem onClick={logout} className="text-red-600 focus:text-red-600 focus:bg-red-50 cursor-pointer">
                                     <LogOut className="mr-2 h-4 w-4" />
                                     <span>Cerrar Sesión</span>
                                 </DropdownMenuItem>
