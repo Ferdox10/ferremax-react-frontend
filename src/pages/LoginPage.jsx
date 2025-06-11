@@ -27,7 +27,7 @@ export default function LoginPage() {
       } else {
         setError(response.message || 'Credenciales incorrectas. Inténtalo de nuevo.');
       }
-    } catch (err) {
+    } catch {
       setError('No se pudo conectar con el servidor. Inténtalo más tarde.');
     } finally {
       setLoading(false);
