@@ -15,17 +15,17 @@ export default function PaymentStep() {
     const [loadingMethod, setLoadingMethod] = useState(null);
     const [error, setError] = useState('');
     
-    const { isWompiReady, error: wompiError } = useWompi();
+    const { isWompiReady } = useWompi();
 
     const handleWompiPayment = async () => {
-        // --- CÓDIGO DE DEPURACIÓN ---
-        const wompiPublicKeyFromEnv = import.meta.env.VITE_WOMPI_PUBLIC_KEY;
-        console.log("CLAVE PÚBLICA QUE SE USARÁ:", wompiPublicKeyFromEnv);
-        alert("Se intentará usar la siguiente llave pública de Wompi:\n\n" + wompiPublicKeyFromEnv);
-        // --- FIN DEL CÓDIGO DE DEPURACIÓN ---
-
-        if (!isWompiReady) {
-            setError(wompiError || "La pasarela de pago Wompi no está lista. Por favor, espera un momento.");
+        if (!isWompiReady || typeof window.WompiCheckout !== 'function') {
+            setError("La pasarela de pago no está lista. Por favor, espere.");
+            return;
+        }
+        
+        const wompiPublicKey = import.meta.env.VITE_WOMPI_PUBLIC_KEY;
+        if (!wompiPublicKey) {
+            setError("Error de configuración de pago.");
             return;
         }
 
@@ -34,12 +34,7 @@ export default function PaymentStep() {
         
         try {
             const configResponse = await getFrontendConfig();
-            const { wompiPublicKey, redirectUrl: configuredRedirectUrl } = configResponse.data;
-
-            if (!wompiPublicKey) {
-                throw new Error("Configuración de pago (Wompi) incompleta desde el servidor.");
-            }
-            
+            const { redirectUrl: configuredRedirectUrl } = configResponse.data;
             const redirectUrl = configuredRedirectUrl || `${window.location.origin}/payment-status`;
             const reference = `ferremax_${Date.now()}`;
             const totalInCents = Math.round(cartTotal * 100);
@@ -56,7 +51,7 @@ export default function PaymentStep() {
                 currency: 'COP',
                 amountInCents: totalInCents,
                 reference: reference,
-                publicKey: wompiPublicKeyFromEnv,
+                publicKey: wompiPublicKey,
                 redirectUrl: redirectUrl,
                 customerData: { 
                     email: shippingDetails.email, 
@@ -142,7 +137,6 @@ export default function PaymentStep() {
                      </Button>
 
                      {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
-                     {wompiError && !error && <p className="text-red-500 text-sm mt-2">{wompiError}</p>}
                  </div>
             </div>
             <OrderSummary />
