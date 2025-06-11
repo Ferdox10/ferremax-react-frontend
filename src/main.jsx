@@ -11,8 +11,8 @@ import { CheckoutProvider } from './context/CheckoutContext.jsx';
 import { PayPalScriptProvider } from '@paypal/react-paypal-js';
 
 const initialOptions = {
-    "client-id": import.meta.env.VITE_PAYPAL_CLIENT_ID,
-    currency: "COP", // Cambiado a COP
+    "client-id": import.meta.env.VITE_PAYPAL_CLIENT_ID, // Usa tu clave de Sandbox o Producción
+    currency: "USD", // Cambiado a USD
     intent: "capture",
 };
 

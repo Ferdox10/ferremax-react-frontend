@@ -17,15 +17,21 @@ export default function PaymentStep() {
     const [loadingMethod, setLoadingMethod] = useState(null);
 
     const createPayPalOrder = async (data, actions) => {
-        // Ahora el total ya está en COP, solo nos aseguramos de que tenga 2 decimales.
-        const totalInCOP = cartTotal.toFixed(2);
-        console.log("Creando orden de PayPal por:", totalInCOP, "COP");
-
+        // --- LÓGICA DE CONVERSIÓN ---
+        const TASA_DE_CAMBIO_COP_A_USD = 4000; // ¡Ajusta esta tasa según necesites!
+        // El cartTotal viene en COP desde nuestro contexto
+        const totalInUSD = (cartTotal / TASA_DE_CAMBIO_COP_A_USD).toFixed(2); // Convertir y asegurar 2 decimales
+        console.log(`Total en COP: ${cartTotal}. Total convertido a USD: ${totalInUSD}`);
+        // Verificación para evitar montos muy pequeños que PayPal pueda rechazar
+        if (parseFloat(totalInUSD) < 0.01) {
+            alert("El monto es demasiado bajo para ser procesado por PayPal.");
+            return actions.order.create({ purchase_units: [] }); // Devuelve una orden vacía para cancelar
+        }
         return actions.order.create({
             purchase_units: [{
                 amount: {
-                    value: totalInCOP,
-                    currency_code: "COP" // Asegurarse de que sea COP
+                    value: totalInUSD, // Enviar el valor en USD
+                    currency_code: "USD" // Especificar que la moneda es USD
                 }
             }]
         });
