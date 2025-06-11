@@ -3,117 +3,42 @@ import { useState } from 'react';
 import { useCheckout } from '../../context/CheckoutContext';
 import { useCart } from '../../hooks/useCart';
 import { useAuth } from '../../hooks/useAuth';
-import { createWompiTempOrder, createCashOnDeliveryOrder, getFrontendConfig } from '../../services/api';
+import { PayPalButtons, usePayPalScriptReducer } from "@paypal/react-paypal-js";
+import { createCashOnDeliveryOrder } from '../../services/api';
 import { Button } from '@/components/ui/button';
 import OrderSummary from './OrderSummary';
-import { useWompi } from '../../hooks/useWompi';
-import { PayPalButtons } from "@paypal/react-paypal-js";
 
 export default function PaymentStep() {
-    const { shippingDetails, goToNextStep, setOrderResponse } = useCheckout();
+    const { shippingDetails, goToNextStep, setOrderResponse, goToPrevStep } = useCheckout();
     const { cartItems, cartTotal, clearCart } = useCart();
     const { user } = useAuth();
+    const [{ isPending }] = usePayPalScriptReducer();
     const [error, setError] = useState('');
-    const { isWompiReady } = useWompi();
-
-    const handleWompiPayment = async () => {
-        if (!isWompiReady || typeof window.WompiCheckout !== 'function') {
-            setError("La pasarela de pago no está lista. Por favor, espere.");
-            return;
-        }
-        
-        const wompiPublicKey = import.meta.env.VITE_WOMPI_PUBLIC_KEY;
-        if (!wompiPublicKey) {
-            setError("Error de configuración de pago.");
-            return;
-        }
-
-        setLoadingMethod('wompi');
-        setError('');
-        
-        try {
-            const configResponse = await getFrontendConfig();
-            const { redirectUrl: configuredRedirectUrl } = configResponse.data;
-            const redirectUrl = configuredRedirectUrl || `${window.location.origin}/payment-status`;
-            const reference = `ferremax_${Date.now()}`;
-            const totalInCents = Math.round(cartTotal * 100);
-
-            await createWompiTempOrder({
-                reference, 
-                items: cartItems.map(item => ({ productId: item.ID_Producto, quantity: item.quantity, price: item.precio_unitario })),
-                total: cartTotal, 
-                userId: user?.id, 
-                customerData: shippingDetails
-            });
-
-            const checkout = new window.WompiCheckout({
-                currency: 'COP',
-                amountInCents: totalInCents,
-                reference: reference,
-                publicKey: wompiPublicKey,
-                redirectUrl: redirectUrl,
-                customerData: { 
-                    email: shippingDetails.email, 
-                    fullName: shippingDetails.name, 
-                    phoneNumber: shippingDetails.phone 
-                },
-                shippingAddress: { 
-                    addressLine1: shippingDetails.address, 
-                    city: shippingDetails.city, 
-                    region: shippingDetails.department, 
-                    country: "CO" 
-                }
-            });
-
-            checkout.open(function (result) {
-                if (result.transaction?.status === 'APPROVED') {
-                    setOrderResponse({ success: true, method: 'Wompi', transaction: result.transaction });
-                    clearCart();
-                    goToNextStep();
-                } else {
-                   setError(`El pago ${result.transaction?.status?.toLowerCase() || 'fue cancelado'}. Por favor, intenta de nuevo.`);
-                   setLoadingMethod(null);
-                }
-            });
-
-        } catch (err) {
-            setError(err.response?.data?.message || err.message || 'Error al preparar el pago con Wompi.');
-            setLoadingMethod(null);
-        }
-    };
+    const [loadingMethod, setLoadingMethod] = useState(null);
 
     const createPayPalOrder = async (data, actions) => {
         const totalInUSD = (cartTotal / 4000).toFixed(2);
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/paypal/create-order`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ cartTotal: parseFloat(totalInUSD) }),
+        console.log("Creando orden de PayPal por:", totalInUSD, "USD");
+
+        return actions.order.create({
+            purchase_units: [{
+                amount: {
+                    value: totalInUSD,
+                    currency_code: "USD"
+                }
+            }]
         });
-        const order = await response.json();
-        return order.orderID;
     };
 
     const onPayPalApprove = async (data, actions) => {
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/paypal/capture-order`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                orderID: data.orderID,
-                cart: cartItems,
-                shippingDetails: shippingDetails,
-                userId: user?.id,
-            }),
-        });
-        const details = await response.json();
-        if (details.success) {
-            setOrderResponse({ success: true, method: 'PayPal', order: details });
-            clearCart();
-            goToNextStep();
-        } else {
-            alert("Hubo un problema al procesar su pago con PayPal.");
-        }
+        const capture = await actions.order.capture();
+        console.log("Pago capturado:", capture);
+        
+        setOrderResponse({ success: true, method: 'PayPal', order: capture });
+        clearCart();
+        goToNextStep();
     };
-
+    
     const handleCashOnDelivery = async () => {
         setLoadingMethod('cod');
         setError('');
@@ -137,39 +62,28 @@ export default function PaymentStep() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div>
                  <div className="bg-white p-6 rounded-lg shadow-md space-y-4">
-                     <p className="text-sm text-gray-600">Revisa tu información de envío antes de continuar.</p>
-                     
-                     <Button onClick={goToPrevStep} variant="outline" className="w-full" disabled={!!loadingMethod}>
-                        Volver y Editar Información
-                     </Button>
+                    <p className="text-sm text-gray-600">Revisa tu información de envío antes de continuar.</p>
+                    <Button onClick={goToPrevStep} variant="outline" className="w-full">Volver y Editar Información</Button>
+                    <div className="border-t my-4"></div>
+                    
+                    {isPending ? <p>Cargando PayPal...</p> : (
+                        <PayPalButtons 
+                            style={{ layout: "vertical" }}
+                            createOrder={createPayPalOrder} 
+                            onApprove={onPayPalApprove} 
+                        />
+                    )}
 
-                     <div className="border-t my-4"></div>
-                     
-                     {/* --- BOTÓN DE WOMPI REINTEGRADO --- */}
-                     <Button 
-                        onClick={handleWompiPayment} 
-                        disabled={!isWompiReady || !!loadingMethod} 
-                        className="w-full"
-                     >
-                        {loadingMethod === 'wompi' && 'Procesando...'}
-                        {loadingMethod !== 'wompi' && !isWompiReady && 'Cargando Wompi...'}
-                        {loadingMethod !== 'wompi' && isWompiReady && 'Pagar con Wompi'}
-                     </Button>
-                     
-                     {/* --- BOTÓN DE PAYPAL --- */}
-                     <PayPalButtons createOrder={createPayPalOrder} onApprove={onPayPalApprove} />
-
-                     {/* --- BOTÓN DE CONTRA ENTREGA --- */}
-                     <Button 
+                    <Button 
                         onClick={handleCashOnDelivery} 
                         disabled={!!loadingMethod} 
                         className="w-full" 
                         variant="secondary"
-                     >
+                    >
                         {loadingMethod === 'cod' ? 'Procesando...' : 'Pago Contra Entrega'}
-                     </Button>
+                    </Button>
 
-                     {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
+                    {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
                  </div>
             </div>
             <OrderSummary />
