@@ -7,14 +7,13 @@ import { createWompiTempOrder, createCashOnDeliveryOrder, getFrontendConfig } fr
 import { Button } from '@/components/ui/button';
 import OrderSummary from './OrderSummary';
 import { useWompi } from '../../hooks/useWompi';
+import { PayPalButtons } from "@paypal/react-paypal-js";
 
 export default function PaymentStep() {
-    const { shippingDetails, goToNextStep, setOrderResponse, goToPrevStep } = useCheckout();
+    const { shippingDetails, goToNextStep, setOrderResponse } = useCheckout();
     const { cartItems, cartTotal, clearCart } = useCart();
     const { user } = useAuth();
-    const [loadingMethod, setLoadingMethod] = useState(null);
     const [error, setError] = useState('');
-    
     const { isWompiReady } = useWompi();
 
     const handleWompiPayment = async () => {
@@ -83,6 +82,38 @@ export default function PaymentStep() {
         }
     };
 
+    const createPayPalOrder = async (data, actions) => {
+        const totalInUSD = (cartTotal / 4000).toFixed(2);
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/paypal/create-order`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ cartTotal: parseFloat(totalInUSD) }),
+        });
+        const order = await response.json();
+        return order.orderID;
+    };
+
+    const onPayPalApprove = async (data, actions) => {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/paypal/capture-order`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                orderID: data.orderID,
+                cart: cartItems,
+                shippingDetails: shippingDetails,
+                userId: user?.id,
+            }),
+        });
+        const details = await response.json();
+        if (details.success) {
+            setOrderResponse({ success: true, method: 'PayPal', order: details });
+            clearCart();
+            goToNextStep();
+        } else {
+            alert("Hubo un problema al procesar su pago con PayPal.");
+        }
+    };
+
     const handleCashOnDelivery = async () => {
         setLoadingMethod('cod');
         setError('');
@@ -105,7 +136,6 @@ export default function PaymentStep() {
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div>
-                 <h2 className="text-xl font-semibold mb-4">Seleccionar Método de Pago</h2>
                  <div className="bg-white p-6 rounded-lg shadow-md space-y-4">
                      <p className="text-sm text-gray-600">Revisa tu información de envío antes de continuar.</p>
                      
@@ -126,6 +156,9 @@ export default function PaymentStep() {
                         {loadingMethod !== 'wompi' && isWompiReady && 'Pagar con Wompi'}
                      </Button>
                      
+                     {/* --- BOTÓN DE PAYPAL --- */}
+                     <PayPalButtons createOrder={createPayPalOrder} onApprove={onPayPalApprove} />
+
                      {/* --- BOTÓN DE CONTRA ENTREGA --- */}
                      <Button 
                         onClick={handleCashOnDelivery} 

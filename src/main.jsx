@@ -8,19 +8,28 @@ import { CartProvider } from './context/CartContext.jsx';
 import { FavoritesProvider } from './context/FavoritesContext.jsx';
 import { CompareProvider } from './context/CompareContext.jsx';
 import { CheckoutProvider } from './context/CheckoutContext.jsx';
+import { PayPalScriptProvider } from '@paypal/react-paypal-js';
+
+const initialOptions = {
+    "client-id": import.meta.env.VITE_PAYPAL_CLIENT_ID,
+    currency: "USD",
+    intent: "capture",
+};
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <AuthProvider>
-      <CartProvider>
-        <FavoritesProvider>
-          <CompareProvider>
-            <CheckoutProvider>
-            <App />
-            </CheckoutProvider>
-          </CompareProvider>
-        </FavoritesProvider>
-      </CartProvider>
-    </AuthProvider>
+    <PayPalScriptProvider options={initialOptions}>
+      <AuthProvider>
+        <CartProvider>
+          <FavoritesProvider>
+            <CompareProvider>
+              <CheckoutProvider>
+                <App />
+              </CheckoutProvider>
+            </CompareProvider>
+          </FavoritesProvider>
+        </CartProvider>
+      </AuthProvider>
+    </PayPalScriptProvider>
   </React.StrictMode>,
 );
