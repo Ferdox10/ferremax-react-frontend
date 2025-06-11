@@ -18,6 +18,12 @@ export default function PaymentStep() {
     const { isWompiReady, error: wompiError } = useWompi();
 
     const handleWompiPayment = async () => {
+        // --- CÓDIGO DE DEPURACIÓN ---
+        const wompiPublicKeyFromEnv = import.meta.env.VITE_WOMPI_PUBLIC_KEY;
+        console.log("CLAVE PÚBLICA QUE SE USARÁ:", wompiPublicKeyFromEnv);
+        alert("Se intentará usar la siguiente llave pública de Wompi:\n\n" + wompiPublicKeyFromEnv);
+        // --- FIN DEL CÓDIGO DE DEPURACIÓN ---
+
         if (!isWompiReady) {
             setError(wompiError || "La pasarela de pago Wompi no está lista. Por favor, espera un momento.");
             return;
@@ -50,7 +56,7 @@ export default function PaymentStep() {
                 currency: 'COP',
                 amountInCents: totalInCents,
                 reference: reference,
-                publicKey: wompiPublicKey,
+                publicKey: wompiPublicKeyFromEnv,
                 redirectUrl: redirectUrl,
                 customerData: { 
                     email: shippingDetails.email, 
