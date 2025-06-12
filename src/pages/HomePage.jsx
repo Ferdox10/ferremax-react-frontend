@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { getProducts } from '../services/api';
+import { getProducts, getFeaturedProducts } from '../services/api';
 import ProductCard from '../components/product/ProductCard';
 import { Link } from 'react-router-dom';
 import { Wrench, Cog, Zap, Shield, Ruler, HardHat, Leaf, Sprout } from 'lucide-react';
@@ -19,25 +19,27 @@ const brandStyles = {
 };
 
 export default function HomePage() {
+  const [featuredProducts, setFeaturedProducts] = useState([]);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchAllProducts = async () => {
+    const fetchHomepageData = async () => {
       try {
+        // Llama al nuevo endpoint para los productos destacados
+        const featuredRes = await getFeaturedProducts();
+        setFeaturedProducts(featuredRes.data);
+        // Puedes mantener la lógica para cargar todas las categorías si lo necesitas
         const response = await getProducts();
         setProducts(response.data);
       } catch (error) {
-        console.error("Error al cargar productos:", error);
+        console.error("Error al cargar datos del home:", error);
       } finally {
         setLoading(false);
       }
     };
-    fetchAllProducts();
+    fetchHomepageData();
   }, []);
-
-  // Obtenemos los productos destacados (primeros 4)
-  const featuredProducts = useMemo(() => products.slice(0, 4), [products]);
 
   // Obtenemos las marcas únicas para usarlas como categorías
   const categoriesByBrand = useMemo(() => {
@@ -102,7 +104,7 @@ export default function HomePage() {
           </div>
         </div>
         
-        {/* --- Productos Destacados (sin cambios) --- */}
+        {/* --- Productos Destacados (actualizado con nuevo endpoint) --- */}
         <div>
           <h2 className="text-3xl font-bold text-center mb-8">Productos Destacados</h2>
           {loading ? (

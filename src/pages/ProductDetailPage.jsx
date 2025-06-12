@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { getProductById, getReviewsByProductId } from '../services/api';
+import { getProductById } from '../services/api';
 import { useCart } from '../hooks/useCart';
 import { useFavorites } from '../hooks/useFavorites';
 import InnerImageZoom from 'react-inner-image-zoom';
@@ -77,39 +77,29 @@ export default function ProductDetailPage() {
   const [activeTab, setActiveTab] = useState('especificaciones');
   const [modalImageIndex, setModalImageIndex] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [reviewCount, setReviewCount] = useState(0); // Para forzar recarga de la lista
-  const [reviews, setReviews] = useState([]); // Estado para guardar las reseñas
   const { addToCart } = useCart();
   const { isFavorite, toggleFavorite } = useFavorites();
 
   useEffect(() => {
-    const fetchProductAndReviews = async () => {
+    const fetchProduct = async () => {
       if (!id) return;
       setLoading(true);
       try {
-        // Hacemos ambas llamadas en paralelo
-        const [productRes, reviewsRes] = await Promise.all([
-          getProductById(id),
-          getReviewsByProductId(id)
-        ]);
+        const productRes = await getProductById(id);
         setProduct(productRes.data);
-        setReviews(reviewsRes.data.reviews || []);
         setMainImage(productRes.data.imagen_url || 'https://placehold.co/600x400');
-      } catch (err) {
+      } catch {
         setError('No se pudo encontrar el producto.');
       } finally {
         setLoading(false);
       }
     };
-    fetchProductAndReviews();
+    fetchProduct();
   }, [id]);
 
-  // Calcular la calificación promedio real
-  const averageRating = useMemo(() => {
-    if (reviews.length === 0) return 0;
-    const total = reviews.reduce((acc, review) => acc + review.Calificacion, 0);
-    return total / reviews.length;
-  }, [reviews]);
+  // La calificación y el conteo ahora vienen directamente en el objeto 'product'
+  const averageRating = product?.average_rating || 0;
+  const reviewCount = product?.review_count || 0;
 
   if (loading) return <p className="text-center p-10">Cargando producto...</p>;
   if (error) return <p className="text-center text-red-500 p-10">{error}</p>;
@@ -179,7 +169,7 @@ export default function ProductDetailPage() {
                     <div className="flex items-center gap-4 my-2">
                         <div className="flex items-center">
                            <StarRating rating={averageRating} />
-                           <span className="ml-2 text-sm text-gray-600">({averageRating.toFixed(1)}) - {reviews.length} reseñas</span>
+                           <span className="ml-2 text-sm text-gray-600">({averageRating.toFixed(1)}) - {reviewCount} {reviewCount === 1 ? 'reseña' : 'reseñas'}</span>
                         </div>
                         <span className="text-sm text-gray-500">{product.Marca}</span>
                     </div>
@@ -248,8 +238,8 @@ export default function ProductDetailPage() {
                 )}
                  {activeTab === 'reseñas' && (
                     <div>
-                        <ReviewList productId={product.ID_Producto} key={reviewCount} />
-                        <ReviewForm productId={product.ID_Producto} onReviewSubmit={() => setReviewCount(prev => prev + 1)} />
+                        <ReviewList productId={product.ID_Producto} />
+                        <ReviewForm productId={product.ID_Producto} onReviewSubmit={() => {}} />
                     </div>
                 )}
             </div>

@@ -24,6 +24,7 @@ export const getProductById = (id) => apiClient.get(`/api/productos/${id}`);
 export const loginUser = (credentials) => apiClient.post('/login', credentials);
 export const registerUser = (userData) => apiClient.post('/register', userData);
 export const sendContactMessage = (messageData) => apiClient.post('/api/contact', messageData);
+export const getFeaturedProducts = () => apiClient.get('/api/products/featured');
 
 // --- Funciones de Admin ---
 export const getAdminProducts = () => apiClient.get('/api/admin/products');

@@ -19,10 +19,11 @@ const StarRating = ({ rating }) => {
 export default function ProductCard({ product }) {
   const { addToCart } = useCart();
   const { isFavorite, toggleFavorite } = useFavorites();
-  const { toggleCompare, isInCompare } = useCompare(); // Usar hook de comparar
+  const { toggleCompare, isInCompare } = useCompare();
 
-  // Simulación de calificación (ya que no viene de la BD)
-  const rating = (product.ID_Producto % 5) + 1;
+  // AHORA USAMOS LOS DATOS REALES QUE VIENEN DE LA API
+  const rating = product.average_rating || 0;
+  const reviewCount = product.review_count || 0;
 
   const formatPrice = (price) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(price);
   const isOutOfStock = product.cantidad <= 0;
@@ -43,6 +44,7 @@ export default function ProductCard({ product }) {
             </Link>
             <span className="text-xs font-semibold uppercase text-gray-500">{product.Marca}</span>
             <h3 className="text-md font-semibold text-gray-800 truncate mt-1" title={product.Nombre}>{product.Nombre}</h3>
+            {/* --- CALIFICACIÓN REAL --- */}
             <div className="flex items-center my-2">
                 <StarRating rating={rating} />
                 <span className="text-xs text-gray-500 ml-2">({rating.toFixed(1)})</span>
