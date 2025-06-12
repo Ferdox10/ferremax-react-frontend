@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { getProductById } from '../services/api';
+import { getProductById, getReviewsByProductId } from '../services/api';
 import { useCart } from '../hooks/useCart';
 import { useFavorites } from '../hooks/useFavorites';
 import InnerImageZoom from 'react-inner-image-zoom';
 import 'react-inner-image-zoom/lib/styles.min.css'; // Cambia la ruta al CSS correcto para react-inner-image-zoom
-import { Star, Heart, Share2, Truck, ShieldCheck, Undo2, Minus, Plus } from 'lucide-react';
+import { Star, Heart, Share2, Truck, ShieldCheck, Undo2, Minus, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import copy from 'copy-to-clipboard';
 import ReviewList from '../components/product/ReviewList';
 import ReviewForm from '../components/product/ReviewForm';
@@ -26,15 +26,46 @@ const StarRating = ({ rating = 0 }) => {
     );
 };
 
-// Componente para el modal de imagen (se mantiene igual)
-const ImageModal = ({ src, onClose }) => (
-    <div 
-        onClick={onClose} 
-        className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50"
-    >
-        <img src={src} alt="Vista ampliada" className="max-w-[90%] max-h-[90%] object-contain" onClick={e => e.stopPropagation()} />
-    </div>
-);
+// Componente para el modal de imagen (actualizado)
+const ImageModal = ({ images, initialIndex, onClose }) => {
+    const [currentIndex, setCurrentIndex] = useState(initialIndex);
+
+    const goToPrevious = (e) => {
+        e.stopPropagation();
+        const isFirstSlide = currentIndex === 0;
+        const newIndex = isFirstSlide ? images.length - 1 : currentIndex - 1;
+        setCurrentIndex(newIndex);
+    };
+
+    const goToNext = (e) => {
+        e.stopPropagation();
+        const isLastSlide = currentIndex === images.length - 1;
+        const newIndex = isLastSlide ? 0 : currentIndex + 1;
+        setCurrentIndex(newIndex);
+    };
+
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (e.key === 'ArrowLeft') goToPrevious(e);
+            if (e.key === 'ArrowRight') goToNext(e);
+            if (e.key === 'Escape') onClose();
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [currentIndex]);
+
+    return (
+        <div onClick={onClose} className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50">
+            <button onClick={goToPrevious} className="absolute left-4 text-white p-2 bg-white/20 rounded-full hover:bg-white/40">
+                <ChevronLeft size={32} />
+            </button>
+            <img src={images[currentIndex]} alt="Vista ampliada" className="max-w-[85%] max-h-[85%] object-contain" />
+            <button onClick={goToNext} className="absolute right-4 text-white p-2 bg-white/20 rounded-full hover:bg-white/40">
+                <ChevronRight size={32} />
+            </button>
+        </div>
+    );
+};
 
 export default function ProductDetailPage() {
   const { id } = useParams();
@@ -44,26 +75,41 @@ export default function ProductDetailPage() {
   const [quantity, setQuantity] = useState(1);
   const [mainImage, setMainImage] = useState('');
   const [activeTab, setActiveTab] = useState('especificaciones');
+  const [modalImageIndex, setModalImageIndex] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [reviewCount, setReviewCount] = useState(0); // Para forzar recarga de la lista
+  const [reviews, setReviews] = useState([]); // Estado para guardar las reseñas
   const { addToCart } = useCart();
   const { isFavorite, toggleFavorite } = useFavorites();
 
   useEffect(() => {
-    const fetchProduct = async () => {
+    const fetchProductAndReviews = async () => {
+      if (!id) return;
+      setLoading(true);
       try {
-        setLoading(true);
-        const response = await getProductById(id);
-        setProduct(response.data);
-        setMainImage(response.data.imagen_url || 'https://placehold.co/600x400');
-      } catch {
+        // Hacemos ambas llamadas en paralelo
+        const [productRes, reviewsRes] = await Promise.all([
+          getProductById(id),
+          getReviewsByProductId(id)
+        ]);
+        setProduct(productRes.data);
+        setReviews(reviewsRes.data.reviews || []);
+        setMainImage(productRes.data.imagen_url || 'https://placehold.co/600x400');
+      } catch (err) {
         setError('No se pudo encontrar el producto.');
       } finally {
         setLoading(false);
       }
     };
-    fetchProduct();
+    fetchProductAndReviews();
   }, [id]);
+
+  // Calcular la calificación promedio real
+  const averageRating = useMemo(() => {
+    if (reviews.length === 0) return 0;
+    const total = reviews.reduce((acc, review) => acc + review.Calificacion, 0);
+    return total / reviews.length;
+  }, [reviews]);
 
   if (loading) return <p className="text-center p-10">Cargando producto...</p>;
   if (error) return <p className="text-center text-red-500 p-10">{error}</p>;
@@ -72,7 +118,7 @@ export default function ProductDetailPage() {
   const images = [product.imagen_url, product.imagen_url_2, product.imagen_url_3, product.imagen_url_4, product.imagen_url_5].filter(url => !!url);
   const formatPrice = (price) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(price);
   const isOutOfStock = product.cantidad <= 0;
-  const rating = (product.ID_Producto % 5) + 1; // Simulación
+  // const rating = (product.ID_Producto % 5) + 1; // Simulación
 
   const handleQuantity = (amount) => {
     setQuantity(prev => {
@@ -88,8 +134,13 @@ export default function ProductDetailPage() {
       alert('¡Enlace copiado al portapapeles!');
   };
 
+  const openImageModal = (index) => {
+    setModalImageIndex(index);
+    setIsModalOpen(true);
+  };
+
   return (
-    <div className="bg-gray-50 p-4 sm:p-6">
+    <div className="bg-gray-50 p-2 sm:p-4"> {/* Menos padding en pantallas muy pequeñas */}
         {/* Breadcrumbs */}
         <nav className="text-sm text-gray-500 mb-4">
             <Link to="/" className="hover:text-orange-500">Inicio</Link> &gt; 
@@ -98,27 +149,28 @@ export default function ProductDetailPage() {
             <span className="text-gray-700"> {product.Nombre}</span>
         </nav>
 
-        <div className="bg-white p-6 md:p-8 rounded-lg shadow-lg">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="bg-white p-4 md:p-8 rounded-lg shadow-lg">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
                 {/* Columna de Imágenes */}
                 <div>
-                    <div className="border rounded-lg overflow-hidden cursor-pointer" onClick={() => setIsModalOpen(true)}>
+                    <div className="border rounded-lg overflow-hidden cursor-pointer mb-3" onClick={() => openImageModal(images.indexOf(mainImage))}>
                         <InnerImageZoom src={mainImage || (images.length > 0 ? images[0] : '')} zoomSrc={mainImage || (images.length > 0 ? images[0] : '')} alt={product.Nombre} zoomType="hover"/>
                     </div>
                     {images.length > 1 && (
-                        <div className="flex space-x-2 mt-4">
+                        // Usar `flex-wrap` para que las miniaturas se ajusten si no caben
+                        <div className="flex flex-wrap gap-2">
                             {images.map((img, index) => (
                                 <img 
                                     key={index}
                                     src={img} 
                                     alt={`Miniatura ${index + 1}`}
-                                    onClick={() => setMainImage(img)} 
-                                    className={`w-20 h-20 object-cover rounded-md cursor-pointer border-2 ${mainImage === img ? 'border-orange-500' : 'border-transparent hover:border-gray-300'}`}
+                                    onClick={() => { setMainImage(img); openImageModal(index); }}
+                                    // Ancho fijo para las miniaturas
+                                    className={`w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-md cursor-pointer border-2 ${mainImage === img ? 'border-orange-500' : 'border-transparent'}`}
                                 />
                             ))}
                         </div>
                     )}
-                    {isModalOpen && <ImageModal src={mainImage || (images.length > 0 ? images[0] : '')} onClose={() => setIsModalOpen(false)} />}
                 </div>
 
                 {/* Columna de Información */}
@@ -126,8 +178,8 @@ export default function ProductDetailPage() {
                     <h1 className="text-3xl font-bold text-gray-800">{product.Nombre}</h1>
                     <div className="flex items-center gap-4 my-2">
                         <div className="flex items-center">
-                           <StarRating rating={rating} />
-                           <span className="ml-2 text-sm text-gray-600">({rating.toFixed(1)})</span>
+                           <StarRating rating={averageRating} />
+                           <span className="ml-2 text-sm text-gray-600">({averageRating.toFixed(1)}) - {reviews.length} reseñas</span>
                         </div>
                         <span className="text-sm text-gray-500">{product.Marca}</span>
                     </div>
@@ -202,6 +254,8 @@ export default function ProductDetailPage() {
                 )}
             </div>
         </div>
+
+        {isModalOpen && <ImageModal images={images} initialIndex={modalImageIndex} onClose={() => setIsModalOpen(false)} />}
     </div>
   );
 }
